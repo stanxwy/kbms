@@ -1,0 +1,198 @@
+services:
+  # MinIO 用于存储上传的原始文件、图片等对象数据
+  minio:
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    container_name: kb-minio
+    restart: unless-stopped
+    environment:
+      # 管理员账号密码，生产环境请务必修改
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      # 兼容旧版本变量名，部分组件会读取这组值
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    # 9000 是对象存储接口，9001 是 MinIO 控制台
+    command: minio server /minio_data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      # 持久化对象文件
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/minio:/minio_data
+    healthcheck:
+      # 检查 MinIO 服务是否存活
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - kb-net
+
+  # MongoDB 用于保存业务结构化数据
+  mongodb:
+    image: mongo:7.0
+    container_name: kb-mongodb
+    restart: unless-stopped
+    ports:
+      - 27017:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/mongo:/data/db
+    networks:
+    - kb-net
+
+  # 导入服务：负责文件上传、解析、切分、入库等流程
+  kb-import:
+    build:
+      # 自包含布局：构建上下文为 app/ 服务根目录，Dockerfile 与 pyproject.toml、
+      # uv.lock 等同处 app/，直接以当前目录为上下文即可。
+      context: .
+      dockerfile: Dockerfile
+    # 与查询服务共用同一套镜像，仅启动命令不同
+    image: kb-app:latest
+    container_name: kb-import
+    restart: unless-stopped
+    env_file:
+      # 统一加载生产环境变量
+      - .env.prod
+    # 启动导入接口，监听 8000 端口。
+    # 入口修正为 app.main:app（原 knowledge.api.import_router:create_app 指向的
+    # import_router / create_app 在当前代码中不存在）。
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+    ports:
+      - "8000:8000"
+    volumes:
+      # 挂载临时文件和日志目录，便于宿主机查看与持久化
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kb-import/temp-files:/app/temp-files
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kb-import/logs:/app/logs
+    depends_on:
+      # 业务依赖(均在本 compose 内): 对象存储 + 文档库
+      minio:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      # 向量库 Milvus 来自 infra compose; 经根 docker-compose.yml 的 include 合并为
+      # 同一项目后,可按服务名 milvus-standalone 访问,且需等其健康后再启动本服务。
+      milvus-standalone:
+        condition: service_healthy
+    networks:
+      # kb-net 连通业务依赖；milvus 网络用于按服务名访问 Milvus（milvus-standalone）。
+      - kb-net
+      - milvus
+
+  # 查询服务：负责检索、召回、重排和问答接口
+  kb-query:
+    build:
+      # 自包含布局：构建上下文为 app/ 服务根目录，与 kb-import 保持一致
+      context: .
+      dockerfile: Dockerfile
+    image: kb-app:latest
+    container_name: kb-query
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    # 启动查询接口，监听 8001 端口。
+    # 入口修正为 app.main:app（原 knowledge.api.query_router:create_app 指向的
+    # create_app 工厂在当前代码中不存在，且 query_router 位于 app.api.v1 下）。
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--workers", "1"]
+    ports:
+      - "8001:8001"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kb-query/temp-files:/app/temp-files
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kb-query/logs:/app/logs
+    depends_on:
+      minio:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      milvus-standalone:
+        condition: service_healthy
+    healthcheck:
+      # 通过健康检查接口确认查询服务已经可用
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - kb-net
+      - milvus
+
+  # KBMS Postgres — 关系数据(用户/角色/部门/知识单元元数据/QA log/FAQ/Gap)
+  kbms-postgres:
+    image: postgres:16-alpine
+    container_name: kbms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kbms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kbms}
+      POSTGRES_DB: ${POSTGRES_DB:-kbms}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kbms-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kbms} -d ${POSTGRES_DB:-kbms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kb-net
+
+  # KBMS Admin 后端 — FastAPI 进程 :8002, 依赖 RAG (kb-import) 和 Postgres
+  kb-admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: kb-admin
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      # 容器内通过服务名访问依赖
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-kbms}:${POSTGRES_PASSWORD:-kbms}@kbms-postgres:5432/${POSTGRES_DB:-kbms}
+      DATABASE_SYNC_URL: postgresql+psycopg2://${POSTGRES_USER:-kbms}:${POSTGRES_PASSWORD:-kbms}@kbms-postgres:5432/${POSTGRES_DB:-kbms}
+      RAG_BASE_URL: http://kb-import:8000
+    command: ["uvicorn", "admin.main:app", "--host", "0.0.0.0", "--port", "8002", "--workers", "1"]
+    ports:
+      - "8002:8002"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kb-admin/logs:/app/logs
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/kb-admin/static/dist:/app/admin/static/dist
+    depends_on:
+      kbms-postgres:
+        condition: service_healthy
+      kb-import:
+        condition: service_started
+    networks:
+      - kb-net
+
+  # 前端构建 — 一次性服务: 把 admin-frontend 构建产物复制到 admin/static/dist
+  admin-frontend-build:
+    image: node:20-alpine
+    container_name: admin-frontend-build
+    working_dir: /work
+    profiles: ["build"]   # 默认不启动; 需要时 docker compose --profile build run
+    command:
+      - sh
+      - -c
+      - |
+        corepack enable &&
+        pnpm install --frozen-lockfile &&
+        pnpm run build &&
+        cp -r dist/* /out/
+    volumes:
+      - ./admin-frontend:/work
+      - admin-frontend-dist:/out   # 与 kb-admin 的 static/dist 共享
+    networks:
+      - kb-net
+
+networks:
+  # 自定义桥接网络，保证各容器可以通过服务名互相访问
+  kb-net:
+    driver: bridge
+
+volumes:
+  admin-frontend-dist:
+    driver: local
