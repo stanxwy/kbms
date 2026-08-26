@@ -33,6 +33,27 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 依赖注入/查询参数惯用法：允许在参数默认值中直接调用以下函数，
+# 避免将其误判为 B008（Depends/Query 等本就被设计用于默认参数场景）。
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "admin.core.deps.require_permissions",
+]
+
+[tool.ruff.lint.isort]
+# admin 为项目自有包；alembic 为保证第三方依赖（与项目内 alembic/ 迁移目录同名），
+# 显式归属为第三方，避免 isort 将迁移目录误判为首方包导致导入错排。
+known-first-party = ["admin"]
+known-third-party = ["alembic"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

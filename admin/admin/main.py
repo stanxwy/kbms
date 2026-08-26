@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from admin.api.v1.health import router as health_router
+from admin.api.v1 import api_router
 from admin.config import get_settings
 from admin.core.exceptions import AppError
 from admin.core.response import error_response
@@ -39,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health_router, prefix=settings.API_PREFIX)
+app.include_router(api_router, prefix=settings.API_PREFIX)
 
 
 # ---- 全局异常处理：统一为 {code, message, data} ----
