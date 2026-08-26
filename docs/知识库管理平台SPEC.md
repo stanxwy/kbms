@@ -14,7 +14,7 @@
 
 ## 1. 技术选型与理由
 
-### 1.1 总体选型
+### 1.1 后端选型
 
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
@@ -23,19 +23,29 @@
 | ORM | SQLAlchemy 2.0（async）+ asyncpg | 异步驱动与 FastAPI 匹配；2.0 声明式 + typed ORM，迁移可控 |
 | 数据库迁移 | Alembic | 版本化 schema 演进，满足"数据库初始化脚本"交付 |
 | 关系库 | PostgreSQL 16 | JSONB 原生支持（`*_json` 字段）、树形递归查询（departments 自引用）、窗口函数适配看板聚合 |
-| 缓存 | Redis | FAQ 高频问答要求"高速缓存 + 语义相似度匹配"低时延命中；支持 `SET`/`GET` 与 TTL |
+| 缓存 | PostgreSQL（复用关系库） | 现阶段不引入独立缓存中间件；FAQ 命中缓存基于 `faqs` 表 + 语义相似度匹配，命中返回标准答案以降低 Token 消耗 |
 | 认证 | JWT（python-jose）+ bcrypt（passlib） | 无状态鉴权，RBAC 拦截中间件校验签名与过期；密码 bcrypt 单向散列 |
-| 前端框架 | Vue 3 + TypeScript + Vite | 组合式 API 适合中后台；`pnpm`（compose 已指定）冷启动快 |
-| UI 组件库 | Element Plus | 中后台表格/树/表单/弹窗组件齐全，与部门树、权限树、知识列表高度匹配 |
-| 图表 | ECharts | 看板趋势/分布/榜单可视化能力强、生态稳定 |
-| 状态管理 / 路由 | Pinia / vue-router | Vue 3 官方推荐，管理登录态、动态菜单、权限码 |
-| Markdown / 流式渲染 | markdown-it + highlight.js（或 markdown-it-chain） | AI 对话流式 Markdown 渲染 |
 
-### 1.2 关键决策说明
+### 1.2 前端选型（React + Ant Design）
+
+| 类别 | 选型 | 版本 | 理由 |
+| --- | --- | --- | --- |
+| 框架 | React | 18+ | 生态最大，Ant Design 完整支持 |
+| 语言 | TypeScript | 5+ | 类型驱动，与后端 Pydantic schema 协同 |
+| 构建 | Vite | 5+ | 启动快、HMR、产物优化 |
+| UI 库 | Ant Design | 5+ | 中后台组件最全，Tree/Form/Table/Upload 齐全 |
+| 路由 | react-router-dom | 6+ | 路由守卫 + 嵌套路由 |
+| 状态 | zustand | 4+ | 轻量，存 token + user info |
+| HTTP | axios | 1+ | interceptor 自动加 JWT |
+| Markdown | react-markdown + remark-gfm | latest | AI 回答渲染 |
+| 图表 | @ant-design/charts 或 ECharts for React | latest | 看板趋势/分布图 |
+| 代码风格 | ESLint + Prettier | latest | 与 RAG 工程风格对齐 |
+
+### 1.3 关键决策说明
 
 1. **admin 与 RAG 解耦（HTTP 集成）**：admin 通过 `RAG_BASE_URL` 调用 RAG 的 `/api/v1`（`upload`/`recall`/`embed`/`query`/`stream`/`task/status`），避免 admin 重复加载 BGE-M3 等重模型，职责单一、可独立扩缩容。
 2. **数据权限最终解释权在 admin**：RAG 只负责"召回候选 + 按白名单偏置"，鉴权计算集中在 admin 的数据权限引擎，保证一致性与可测试性。
-3. **FAQ 缓存语义匹配复用 RAG `/embed`**：admin 不本地部署向量模型，语义相似度通过调用 RAG 的 BGE-M3 向量接口实现，存入 Redis 供快速命中。
+3. **FAQ 缓存语义匹配复用 RAG `/embed`**：admin 不本地部署向量模型，语义相似度通过调用 RAG 的 BGE-M3 向量接口实现，匹配结果与已发布 FAQ 均持久化在 PostgreSQL，命中即返回标准答案。
 4. **看板/沉淀基于事实表 `qa_access_logs` 异步写入**：问答主链路不阻塞，统计聚合离线/近实时计算。
 
 ---
@@ -47,7 +57,7 @@
 ```mermaid
 flowchart TB
     subgraph Client["客户端"]
-        Web["admin-frontend<br/>Vue3 + TS + Element Plus + ECharts"]
+        Web["admin-frontend<br/>React + TS + Ant Design"]
     end
 
     subgraph Admin["admin 后端 (kb-admin :8002)"]
@@ -64,8 +74,7 @@ flowchart TB
     end
 
     subgraph Data["数据层"]
-        PG[("PostgreSQL 16<br/>业务/权限/日志/FAQ/Gap")]
-        Redis[("Redis<br/>FAQ 高速缓存")]
+        PG[("PostgreSQL 16<br/>业务/权限/日志/FAQ/Gap/缓存")]
     end
 
     subgraph RAG["RAG 核心 (kb-import :8000, 复用/扩展)"]
@@ -89,7 +98,7 @@ flowchart TB
     Settle --> PG
     AI --> DPE
     AI --> FAQCache
-    FAQCache --> Redis
+    FAQCache --> PG
     AI -->|"RAG_BASE_URL"| Router
     KU -->|"RAG_BASE_URL"| Router
     Settle -->|"embed/recall"| Router
@@ -559,7 +568,7 @@ sequenceDiagram
     participant DPE as 数据权限引擎
     participant RAG as RAG 核心
     participant PG as PostgreSQL
-    participant FAQ as FAQ缓存(Redis)
+    participant FAQ as FAQ缓存(PostgreSQL)
 
     U->>FE: 发起提问
     FE->>BE: POST /api/ai/chat/stream (SSE)
@@ -592,7 +601,7 @@ sequenceDiagram
     participant PG as PostgreSQL
     participant KA as 知识管理员
     participant RAG as RAG 核心
-    participant Redis as FAQ缓存
+    participant FAQC as FAQ缓存(PostgreSQL)
 
     JOB->>PG: 拉取问答日志(窗口内)
     JOB->>RAG: POST /api/v1/embed(问题集) → 向量
@@ -604,8 +613,8 @@ sequenceDiagram
     BE->>PG: 写 knowledge_gaps(status=unresolved)
     KA->>BE: 审核 POST /api/settlement/faqs/{id}/review (approve)
     BE->>PG: 更新 faqs.status=published
-    BE->>Redis: 写入 FAQ 缓存(向量 + 答案)
-    Note over Redis: 后续提问命中缓存直接返回标准答案
+    BE->>FAQC: 写入已发布 FAQ(标准答案)
+    Note over FAQC: 后续提问命中 FAQ 直接返回标准答案
 ```
 
 ### 5.4 数据权限引擎判定流程（流程图）
@@ -656,7 +665,7 @@ flowchart TD
 
 ### 7.1 FAQ 缓存
 
-- 审核 `approve` 时：调用 RAG `/embed` 生成问题向量，写入 Redis：`faq:index`（语义检索用向量索引，可选用 RediSearch 或轻量 ANN）+ `faq:{id}`（问答正文）。
+- 现阶段不引入 Redis，FAQ 高速缓存由 PostgreSQL 承载：审核 `approve` 时更新 `faqs.status=published`，并调用 RAG `/embed` 生成问题向量，与标准答案一并持久化在 `faqs` 表（向量可扩展独立的 `embedding` 字段，或命中时按需即时计算）。
 - 命中策略：提问向量与已发布 FAQ 向量做余弦相似度，`sim >= FAQ_MATCH_THRESHOLD`（默认 0.85）则命中，`hit_count++`。
 - 未命中：回落 AI 鉴权问答主链路。
 
@@ -731,25 +740,28 @@ admin-frontend/
 ├── pnpm-lock.yaml
 ├── vite.config.ts
 ├── tsconfig.json
+├── .eslintrc.cjs
+├── .prettierrc
 ├── index.html
 └── src/
-    ├── main.ts
-    ├── App.vue
-    ├── router/                    # 动态路由(按菜单权限)
-    ├── stores/                    # Pinia(auth/permission)
-    ├── api/                       # 接口封装(axios/SSE)
-    ├── layouts/                   # 布局
-    ├── views/
+    ├── main.tsx
+    ├── App.tsx
+    ├── router/                     # react-router-dom 动态路由(按菜单权限)
+    ├── stores/                     # zustand(auth/permission)
+    ├── api/                        # axios 接口封装(interceptor 自动注入 JWT)
+    ├── layouts/                    # AntD Layout 布局
+    ├── pages/
     │   ├── login/
     │   ├── dashboard/
-    │   ├── org/                   # user/role/dept
-    │   ├── knowledge/             # import/unit list/unit detail
-    │   ├── chat/                  # AI 对话工作台
-    │   └── settlement/            # faq/gap
+    │   ├── org/                    # user/role/dept
+    │   ├── knowledge/              # import/unit list/unit detail
+    │   ├── chat/                   # AI 对话工作台
+    │   └── settlement/             # faq/gap
     ├── components/
-    │   ├── PermissionDialog.vue   # 数据权限四维选择弹窗
-    │   ├── MarkdownViewer.vue     # 流式 Markdown 渲染
-    │   └── SourceCiteCard.vue     # 引用/权限缺失卡片
+    │   ├── PermissionDialog.tsx    # 数据权限四维选择弹窗
+    │   ├── MarkdownViewer.tsx      # react-markdown 流式渲染
+    │   └── SourceCiteCard.tsx      # 引用/权限缺失卡片
+    ├── hooks/
     └── utils/
 ```
 
@@ -769,7 +781,6 @@ admin-frontend/
 | `FAQ_MIN_WINDOW_DAYS` | 统计窗口 | 已含 |
 | `FAQ_MINER_INTERVAL_MIN` | 挖掘调度间隔 | 已含 |
 | `FAQ_MATCH_THRESHOLD` | 缓存语义命中阈值 | 已含 |
-| `REDIS_URL` | Redis 连接（**建议新增**） | 需补 |
 | `CORS_ALLOW_ORIGINS` | 跨域来源 | 已含 |
 
 ---

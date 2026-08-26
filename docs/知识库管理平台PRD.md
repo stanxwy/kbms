@@ -326,7 +326,7 @@ flowchart LR
 | 交付物 | 说明 |
 | --- | --- |
 | admin 后端 | `admin/` 目录，FastAPI 应用（:8002） |
-| admin 前端 | `admin-frontend/` 目录，Vue3 + TS |
+| admin 前端 | `admin-frontend/` 目录，React 18+ + Ant Design 5 + TypeScript + Vite |
 | 数据库脚本 | Alembic 迁移 + 种子数据初始化脚本 |
 | 示例知识文档 | 供演示导入的 PDF/MD 示例文档 |
 | 接口文档 | OpenAPI + 接口说明 |
@@ -342,7 +342,7 @@ flowchart LR
 | 跨系统锚点一致性 | `source_file_name` 与 RAG `file_title` 必须一致 | 导入时统一锚点生成；单测校验 |
 | RAG 召回侧需输出 `file_title` | 权限过滤依赖召回结果带 file_title | 复用既有 `/api/v1/recall` |
 | FAQ 语义匹配需向量 | admin 无向量模型 | 复用 `/api/v1/embed` |
-| Redis 缓存为建议新增 | 需求要求"高速缓存"，当前 compose 无 Redis | 新增 `kbms-redis`，或降级为进程内/DB 缓存 |
+| FAQ 缓存存储选型 | 现阶段不引入 Redis，FAQ 缓存由 PostgreSQL 承载 | 基于 `faqs` 表 + 语义匹配实现，命中即返回标准答案 |
 | 批量并发解析资源 | 大批量导入耗费 GPU/内存 | 任务队列限流、进度轮询、失败重试 |
 
 ---
