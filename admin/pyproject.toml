@@ -1,0 +1,38 @@
+[project]
+name = "kbms-admin"
+version = "0.1.0"
+description = "KBMS admin backend: auth / org / data-permission / knowledge / dashboard / settlement"
+requires-python = ">=3.11"
+dependencies = [
+    "alembic>=1.13.0",
+    "asyncpg>=0.29.0",
+    "bcrypt>=4.1.0",
+    "fastapi>=0.110.0",
+    "loguru>=0.7.2",
+    "psycopg2-binary>=2.9.9",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "python-jose[cryptography]>=3.3.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "uvicorn[standard]>=0.27.0",
+]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.19.0",
+    "httpx>=0.27.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
