@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Button,
+  Card,
   Form,
   Input,
+  List,
   Modal,
   Popconfirm,
+  Progress,
   Select,
   Space,
   Table,
   Tag,
+  Typography,
   Upload,
   message,
 } from 'antd'
@@ -18,10 +22,12 @@ import { InboxOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons
 
 import {
   deleteUnits,
+  getImportTask,
   getUnitPermissions,
   getUnits,
   importKnowledge,
   updateUnit,
+  type ImportTaskStatus,
   type KnowledgeUnitOut,
   type UnitPermissionItem,
 } from '../../api/knowledge'
@@ -46,6 +52,31 @@ const STATUS_TAG: Record<string, { color: string; text: string }> = {
   draft: { color: 'default', text: '草稿' },
   published: { color: 'green', text: '已发布' },
   archived: { color: 'orange', text: '已归档' },
+}
+
+/** 单个导入任务的实时进度。 */
+interface ImportItem {
+  key: string
+  fileName: string
+  taskId: string
+  status: 'submitting' | 'processing' | 'completed' | 'failed'
+  percent: number
+  runningNodes: string[]
+}
+
+/** 导入任务状态文字。 */
+const IMPORT_STATUS_TEXT: Record<ImportItem['status'], string> = {
+  submitting: '排队中',
+  processing: '处理中',
+  completed: '已完成',
+  failed: '失败',
+}
+
+const POLL_INTERVAL_MS = 1500
+
+/** RAG 流水线总节点数：PDF 走解析拆分共 8 步，其余 7 步（与 app ingest 页对齐）。 */
+function totalNodesOf(fileName: string): number {
+  return fileName.toLowerCase().endsWith('.pdf') ? 8 : 7
 }
 
 function formatSize(bytes: number): string {
@@ -74,6 +105,8 @@ export default function KnowledgePage() {
 
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [importing, setImporting] = useState(false)
+  const [importItems, setImportItems] = useState<ImportItem[]>([])
+  const pollTimer = useRef<number | null>(null)
 
   const [form] = Form.useForm<UnitFormValues>()
   const [modalOpen, setModalOpen] = useState(false)
@@ -118,16 +151,75 @@ export default function KnowledgePage() {
     setImporting(true)
     try {
       const res = await importKnowledge(files)
-      message.success(`已提交 ${files.length} 个导入任务`)
+      const items: ImportItem[] = files.map((f, i) => ({
+        key: `${Date.now()}-${i}`,
+        fileName: f.name,
+        taskId: res.task_ids[i],
+        status: 'submitting',
+        percent: 0,
+        runningNodes: [],
+      }))
+      setImportItems(items)
       setFileList([])
-      // 简单提示任务编号，详情可后续轮询 /knowledge/import/tasks/{id}
-      console.info('import tasks:', res.task_ids)
+      schedulePoll(items)
     } catch (e) {
       message.error(e instanceof Error ? e.message : '导入失败')
     } finally {
       setImporting(false)
     }
   }
+
+  /** 将一次任务状态查询合并为导入项（进度算法与 app ingest 页一致：完成节点/总节点）。 */
+  const mergeTaskStatus = (item: ImportItem, status: ImportTaskStatus): ImportItem => {
+    if (item.status === 'completed' || item.status === 'failed') return item
+    if (status.status === 'completed') {
+      return { ...item, status: 'completed', percent: 100, runningNodes: [] }
+    }
+    if (status.status === 'failed') {
+      return { ...item, status: 'failed', runningNodes: [] }
+    }
+    const total = totalNodesOf(item.fileName)
+    const done = status.done_list?.length ?? 0
+    let percent = (done / total) * 100
+    if ((status.running_list?.length ?? 0) > 0) percent += (0.5 / total) * 100
+    return { ...item, status: 'processing', percent, runningNodes: status.running_list ?? [] }
+  }
+
+  /** 递归轮询各任务直至全部结束；组件卸载时清理计时器。 */
+  const schedulePoll = (items: ImportItem[]) => {
+    if (pollTimer.current) window.clearTimeout(pollTimer.current)
+    pollTimer.current = window.setTimeout(async () => {
+      const updated = await Promise.all(
+        items.map(async (it) => {
+          if (it.status === 'completed' || it.status === 'failed') return it
+          try {
+            return mergeTaskStatus(it, await getImportTask(it.taskId))
+          } catch {
+            return it
+          }
+        }),
+      )
+      setImportItems(updated)
+      if (updated.some((it) => it.status === 'submitting' || it.status === 'processing')) {
+        schedulePoll(updated)
+      } else {
+        // 全部结束：刷新一次知识单元列表，展示新入库内容。
+        load()
+      }
+    }, POLL_INTERVAL_MS)
+  }
+
+  const clearImportItems = () => {
+    if (pollTimer.current) window.clearTimeout(pollTimer.current)
+    pollTimer.current = null
+    setImportItems([])
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pollTimer.current) window.clearTimeout(pollTimer.current)
+    }
+  }, [])
 
   const openEdit = (record: KnowledgeUnitOut) => {
     setEditing(record)
@@ -323,6 +415,45 @@ export default function KnowledgePage() {
             </Popconfirm>
           )}
         </Space>
+      )}
+
+      {importItems.length > 0 && (
+        <Card size="small" title="导入进度" style={{ marginBottom: 16 }} extra={<Button type="link" onClick={clearImportItems}>清空</Button>}>
+          <List
+            size="small"
+            dataSource={importItems}
+            renderItem={(it) => {
+              const active = it.status === 'submitting' || it.status === 'processing'
+              const progressStatus =
+                it.status === 'failed' ? 'exception' : it.status === 'completed' ? 'success' : 'active'
+              return (
+                <List.Item>
+                  <div style={{ width: '100%' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Space size={8}>
+                        <Typography.Text ellipsis={{ tooltip: it.fileName }} style={{ maxWidth: 320 }}>
+                          {it.fileName}
+                        </Typography.Text>
+                        <Tag color={it.status === 'failed' ? 'red' : active ? 'processing' : it.status === 'completed' ? 'green' : 'default'}>
+                          {IMPORT_STATUS_TEXT[it.status]}
+                        </Tag>
+                        {it.runningNodes.length > 0 && (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            正在 {it.runningNodes.join('、')}
+                          </Typography.Text>
+                        )}
+                      </Space>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {it.percent.toFixed(0)}%
+                      </Typography.Text>
+                    </div>
+                    <Progress percent={Number(it.percent.toFixed(0))} status={progressStatus} size="small" />
+                  </div>
+                </List.Item>
+              )
+            }}
+          />
+        </Card>
       )}
 
       <Table

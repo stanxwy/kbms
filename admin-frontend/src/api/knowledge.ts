@@ -42,8 +42,16 @@ export const importKnowledge = (files: File[]) => {
   return client.post<{ task_ids: string[] }, { task_ids: string[] }>('/knowledge/import', form)
 }
 
+/** 导入任务进度（透传 RAG /task/status 结果；done/running 为已/正在执行的流水线节点）。 */
+export interface ImportTaskStatus {
+  status: string
+  done_list?: string[]
+  running_list?: string[]
+  message?: string
+}
+
 export const getImportTask = (taskId: string) =>
-  client.get<Record<string, unknown>, Record<string, unknown>>(`/knowledge/import/tasks/${taskId}`)
+  client.get<ImportTaskStatus, ImportTaskStatus>(`/knowledge/import/tasks/${taskId}`)
 
 // ---- 知识单元 ----
 export const getUnits = (params: UnitListParams) =>

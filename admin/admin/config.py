@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     FAQ_MATCH_THRESHOLD: float = 0.85
 
     # ===== CORS =====
-    CORS_ALLOW_ORIGINS: str = "http://localhost:5173,http://localhost:8002"
+    CORS_ALLOW_ORIGINS: str = "http://localhost:5173"
 
     @property
     def cors_origins(self) -> list[str]:
