@@ -1,4 +1,5 @@
 """组织架构服务：部门树 / 用户 / 角色与权限分配。"""
+
 from __future__ import annotations
 
 from sqlalchemy import select
@@ -238,15 +239,10 @@ async def get_role_permissions(session: AsyncSession, role_id: int) -> list[Perm
     if await org_repository.get_role(session, role_id) is None:
         raise NotFoundError("角色不存在")
     perms = await org_repository.list_role_permissions(session, role_id)
-    return [
-        PermissionItem(permission_code=p.permission_code, permission_type=p.permission_type)
-        for p in perms
-    ]
+    return [PermissionItem(permission_code=p.permission_code, permission_type=p.permission_type) for p in perms]
 
 
-async def set_role_permissions(
-    session: AsyncSession, role_id: int, items: list[PermissionItem]
-) -> None:
+async def set_role_permissions(session: AsyncSession, role_id: int, items: list[PermissionItem]) -> None:
     if await org_repository.get_role(session, role_id) is None:
         raise NotFoundError("角色不存在")
     for item in items:
@@ -272,28 +268,20 @@ async def _to_user_out_list(session: AsyncSession, users: list[User]) -> list[Us
     dept_ids = {u.department_id for u in users if u.department_id is not None}
     dept_map: dict[int, str] = {}
     if dept_ids:
-        for dept in (
-            await session.execute(select(Department).where(Department.id.in_(dept_ids)))
-        ).scalars():
+        for dept in (await session.execute(select(Department).where(Department.id.in_(dept_ids)))).scalars():
             dept_map[dept.id] = dept.name
 
     user_ids = [u.id for u in users]
     user_role_map: dict[int, list[int]] = {}
     role_ids: set[int] = set()
-    for ur in (
-        await session.execute(select(UserRole).where(UserRole.user_id.in_(user_ids)))
-    ).scalars():
+    for ur in (await session.execute(select(UserRole).where(UserRole.user_id.in_(user_ids)))).scalars():
         user_role_map.setdefault(ur.user_id, []).append(ur.role_id)
         role_ids.add(ur.role_id)
     role_map = {r.id: r for r in await org_repository.list_roles_by_ids(session, list(role_ids))}
 
     result: list[UserOut] = []
     for u in users:
-        roles = [
-            RoleBrief.model_validate(role_map[rid])
-            for rid in user_role_map.get(u.id, [])
-            if rid in role_map
-        ]
+        roles = [RoleBrief.model_validate(role_map[rid]) for rid in user_role_map.get(u.id, []) if rid in role_map]
         result.append(
             UserOut(
                 id=u.id,

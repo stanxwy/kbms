@@ -1,4 +1,5 @@
 """统一响应封装：`{code, message, data}` 结构与快速构造助手。"""
+
 from typing import Any
 
 from fastapi.responses import JSONResponse

@@ -1,4 +1,5 @@
 """ORM 声明基类与通用时间戳 MIXIN。"""
+
 from datetime import datetime
 
 from sqlalchemy import DateTime, func
@@ -12,9 +13,7 @@ class Base(DeclarativeBase):
 class TimestampMixin:
     """追加 created_at / updated_at（TIMESTAMPTZ，DEFAULT now()）的通用 MIXIN。"""
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

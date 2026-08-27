@@ -1,4 +1,5 @@
 """知识维护服务：导入、知识单元 CRUD 与数据权限配置。"""
+
 from __future__ import annotations
 
 import uuid
@@ -37,9 +38,7 @@ def _file_meta(filename: str, size: int) -> tuple[str, str]:
     return stem, ext
 
 
-async def import_knowledge(
-    session: AsyncSession, current_user: CurrentUser, files: list[UploadFile]
-) -> list[str]:
+async def import_knowledge(session: AsyncSession, current_user: CurrentUser, files: list[UploadFile]) -> list[str]:
     """转发文件到 RAG 导入，并按文件落 `knowledge_units` 元数据。"""
     if not files:
         raise BadRequestError("未选择要导入的文件")
@@ -122,9 +121,7 @@ async def get_unit_detail(session: AsyncSession, unit_id: int) -> KnowledgeUnitD
         raise NotFoundError("知识单元不存在")
     perms = await knowledge_repository.list_unit_permissions(session, unit_id)
     detail = KnowledgeUnitDetail.model_validate(unit)
-    detail.permissions = [
-        UnitPermissionItem(target_type=p.target_type, target_id=p.target_id) for p in perms
-    ]
+    detail.permissions = [UnitPermissionItem(target_type=p.target_type, target_id=p.target_id) for p in perms]
     return detail
 
 
@@ -166,9 +163,7 @@ async def get_unit_permissions(session: AsyncSession, unit_id: int) -> list[Unit
     return [UnitPermissionItem(target_type=p.target_type, target_id=p.target_id) for p in perms]
 
 
-async def set_unit_permissions(
-    session: AsyncSession, unit_id: int, items: list[UnitPermissionItem]
-) -> None:
+async def set_unit_permissions(session: AsyncSession, unit_id: int, items: list[UnitPermissionItem]) -> None:
     if await knowledge_repository.get_unit(session, unit_id) is None:
         raise NotFoundError("知识单元不存在")
     normalized: list[tuple[str, int]] = []

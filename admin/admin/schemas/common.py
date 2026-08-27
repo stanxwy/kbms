@@ -1,4 +1,5 @@
 """通用 Pydantic 模型：分页参数与分页响应。"""
+
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field

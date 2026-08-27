@@ -1,4 +1,5 @@
 """认证鉴权路由。"""
+
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -5,6 +5,7 @@ Revises:
 Create Date: 2026-08-26
 
 """
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
@@ -181,12 +182,8 @@ def upgrade() -> None:
     op.create_index("ix_knowledge_gaps_status", "knowledge_gaps", ["status"])
 
     # 补充循环外键。
-    op.create_foreign_key(
-        "fk_users_department_id", "users", "departments", ["department_id"], ["id"]
-    )
-    op.create_foreign_key(
-        "fk_departments_leader_id", "departments", "users", ["leader_id"], ["id"]
-    )
+    op.create_foreign_key("fk_users_department_id", "users", "departments", ["department_id"], ["id"])
+    op.create_foreign_key("fk_departments_leader_id", "departments", "users", ["leader_id"], ["id"])
 
 
 def downgrade() -> None:

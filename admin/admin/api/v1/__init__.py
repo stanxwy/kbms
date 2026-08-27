@@ -1,4 +1,5 @@
 """API v1 路由集合（挂载于 /api 前缀）。"""
+
 from fastapi import APIRouter
 
 from admin.api.v1.auth import router as auth_router

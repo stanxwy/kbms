@@ -1,4 +1,5 @@
 """组织架构路由：部门 / 用户 / 角色与权限。"""
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 

@@ -1,4 +1,5 @@
 """用户与用户-角色的数据访问层。"""
+
 from __future__ import annotations
 
 from sqlalchemy import delete, func, select
@@ -8,9 +9,7 @@ from admin.models.user import User, UserRole
 
 
 async def get_by_username(session: AsyncSession, username: str) -> User | None:
-    return (
-        await session.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
+    return (await session.execute(select(User).where(User.username == username))).scalar_one_or_none()
 
 
 async def get_by_id(session: AsyncSession, user_id: int) -> User | None:
@@ -51,10 +50,10 @@ async def list_users(
 
     total = (await session.execute(count_stmt)).scalar_one()
     rows = (
-        await session.execute(
-            stmt.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size)
-        )
-    ).scalars().all()
+        (await session.execute(stmt.order_by(User.id.desc()).offset((page - 1) * page_size).limit(page_size)))
+        .scalars()
+        .all()
+    )
     return list(rows), total
 
 

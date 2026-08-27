@@ -1,4 +1,5 @@
 """KBMS admin 后端入口：装配 FastAPI 应用、中间件、日志与路由。"""
+
 import sys
 from pathlib import Path
 

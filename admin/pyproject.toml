@@ -59,3 +59,5 @@ known-third-party = ["alembic"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# 让 `import admin` 在测试进程中可解析（admin 包位于工程根目录下，随 cwd 加入 sys.path）。
+pythonpath = ["."]

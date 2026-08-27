@@ -1,4 +1,5 @@
 """组织架构相关 Pydantic 模型：部门、用户、角色与权限。"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field

@@ -1,4 +1,5 @@
 """Alembic 迁移环境：读取 DATABASE_SYNC_URL，目标元数据为 Base.metadata。"""
+
 import sys
 from logging.config import fileConfig
 from pathlib import Path

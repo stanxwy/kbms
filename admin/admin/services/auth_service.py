@@ -1,4 +1,5 @@
 """认证服务：登录、刷新、当前用户。"""
+
 from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession

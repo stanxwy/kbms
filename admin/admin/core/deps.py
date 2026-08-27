@@ -3,6 +3,7 @@
 P1 实现：从 `Authorization: Bearer <access_token>` 解出用户，加载其角色与操作权限，
 供路由作为 FastAPI 依赖使用（登录态 / 菜单与按钮级权限拦截）。
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -42,15 +43,11 @@ async def load_user_identity(session: AsyncSession, user_id: int) -> CurrentUser
     if user is None or user.status != 1:
         raise UnauthorizedError("用户不存在或已停用")
 
-    role_ids = list(
-        (await session.execute(select(UserRole.role_id).where(UserRole.user_id == user_id))).scalars()
-    )
+    role_ids = list((await session.execute(select(UserRole.role_id).where(UserRole.user_id == user_id))).scalars())
     role_codes: list[str] = []
     permissions: set[str] = set()
     if role_ids:
-        role_codes = list(
-            (await session.execute(select(Role.role_code).where(Role.id.in_(role_ids)))).scalars()
-        )
+        role_codes = list((await session.execute(select(Role.role_code).where(Role.id.in_(role_ids)))).scalars())
         permissions = set(
             (
                 await session.execute(

@@ -6,6 +6,7 @@ task / history），统一超时、重试与错误处理。
 说明：RAG 侧响应并非 admin 统一的 `{code, message, data}` 结构，本模块只负责
 「发起请求 → 解析 JSON → 出错抛 :class:`RagError`」，字段判读交给业务层。
 """
+
 from __future__ import annotations
 
 import logging
@@ -103,9 +104,7 @@ async def query(
 
 async def get_history(session_id: str, limit: int = 50) -> dict[str, Any]:
     """查询会话历史信息。"""
-    return await _request(
-        "GET", f"/api/v1/history/{quote(session_id)}", params={"limit": limit}, retries=_GET_RETRIES
-    )
+    return await _request("GET", f"/api/v1/history/{quote(session_id)}", params={"limit": limit}, retries=_GET_RETRIES)
 
 
 async def clear_history(session_id: str) -> dict[str, Any]:

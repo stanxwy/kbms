@@ -1,4 +1,5 @@
 """知识维护相关 Pydantic 模型：导入、知识单元与数据权限配置。"""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field

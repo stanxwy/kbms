@@ -13,6 +13,7 @@ user.username / role_permissions(role_id, permission_code) / user_roles(user_id,
 用法（在 admin/ 目录下）：
     python scripts/init_seed.py
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -84,9 +85,7 @@ async def _seed_departments(session: AsyncSession) -> None:
     """按名称幂等创建部门树，返回 name -> Department 映射。"""
     created: dict[str, Department] = {}
     for name, parent_name in DEPARTMENTS:
-        existing = (
-            await session.execute(select(Department).where(Department.name == name))
-        ).scalar_one_or_none()
+        existing = (await session.execute(select(Department).where(Department.name == name))).scalar_one_or_none()
         if existing is not None:
             created[name] = existing
             continue
@@ -102,9 +101,7 @@ async def _seed_roles_and_permissions(session: AsyncSession) -> dict[str, Role]:
     """幂等创建角色并补齐 role_permissions，返回 role_code -> Role 映射。"""
     roles: dict[str, Role] = {}
     for role_code, role_name, description in ROLES:
-        role = (
-            await session.execute(select(Role).where(Role.role_code == role_code))
-        ).scalar_one_or_none()
+        role = (await session.execute(select(Role).where(Role.role_code == role_code))).scalar_one_or_none()
         if role is None:
             role = Role(role_code=role_code, role_name=role_name, description=description)
             session.add(role)
@@ -114,11 +111,7 @@ async def _seed_roles_and_permissions(session: AsyncSession) -> dict[str, Role]:
         # 补齐缺失的权限码（幂等：UNIQUE(role_id, permission_code)）。
         existing_codes = set(
             (
-                await session.execute(
-                    select(RolePermission.permission_code).where(
-                        RolePermission.role_id == role.id
-                    )
-                )
+                await session.execute(select(RolePermission.permission_code).where(RolePermission.role_id == role.id))
             ).scalars()
         )
         for code in sorted(ROLE_PERMISSIONS[role_code] - existing_codes):
@@ -139,9 +132,7 @@ async def _seed_superuser(session: AsyncSession, roles: dict[str, Role]) -> None
     settings = get_settings()
     username = settings.INITIAL_SUPERUSER_USERNAME
 
-    user = (
-        await session.execute(select(User).where(User.username == username))
-    ).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.username == username))).scalar_one_or_none()
     if user is None:
         user = User(
             username=username,
@@ -154,11 +145,7 @@ async def _seed_superuser(session: AsyncSession, roles: dict[str, Role]) -> None
 
     role = roles["system_admin"]
     already_linked = (
-        await session.execute(
-            select(UserRole).where(
-                UserRole.user_id == user.id, UserRole.role_id == role.id
-            )
-        )
+        await session.execute(select(UserRole).where(UserRole.user_id == user.id, UserRole.role_id == role.id))
     ).scalar_one_or_none()
     if already_linked is None:
         session.add(UserRole(user_id=user.id, role_id=role.id))

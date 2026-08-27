@@ -2,6 +2,7 @@
 
 密码散列采用 bcrypt、JWT 采用 python-jose（依赖已在 pyproject.toml 声明）。
 """
+
 from __future__ import annotations
 
 import time

@@ -3,6 +3,7 @@
 .env 解析相对本文件，使 `uvicorn admin.main:app` 无论从仓库根目录还是
 `admin/` 目录（`cd admin` 后 `uvicorn admin.main:app`）启动都能正确加载默认值。
 """
+
 from functools import lru_cache
 from pathlib import Path
 

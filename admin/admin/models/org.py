@@ -1,4 +1,5 @@
 """组织架构相关模型：部门、角色、角色-操作权限。"""
+
 from sqlalchemy import BigInteger, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -11,16 +12,10 @@ class Department(TimestampMixin, Base):
     __tablename__ = "departments"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    parent_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("departments.id"), nullable=True
-    )
+    parent_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("departments.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    leader_id: Mapped[int | None] = mapped_column(
-        BigInteger, ForeignKey("users.id"), nullable=True
-    )
-    sort_order: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    leader_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 
 class Role(TimestampMixin, Base):

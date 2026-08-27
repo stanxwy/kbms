@@ -4,6 +4,7 @@
 因此模型间未定义 ORM relationship，仅保留 ForeignKey 约束；如后续服务层需要导航关系，
 可在对应模型上按需补充 `relationship(back_populates=...)`。
 """
+
 from admin.models.base import Base, CreatedAtMixin, TimestampMixin
 from admin.models.knowledge import KnowledgeUnit, UnitPermission
 from admin.models.log import QaAccessLog
