@@ -15,8 +15,19 @@ from sqlalchemy.pool import StaticPool
 
 from admin.models.base import Base
 from admin.models.knowledge import KnowledgeUnit, UnitPermission
+from admin.models.org import Department
+from admin.models.user import User, UserRole
 
 _TABLES = [KnowledgeUnit.__table__, UnitPermission.__table__]
+
+# P3 权限引擎所需表：用户/角色关联/部门（均不含 JSONB，aiosqlite 可运行）。
+_AUTHZ_TABLES = [
+    KnowledgeUnit.__table__,
+    UnitPermission.__table__,
+    User.__table__,
+    UserRole.__table__,
+    Department.__table__,
+]
 
 
 @pytest_asyncio.fixture
@@ -29,6 +40,24 @@ async def session() -> AsyncIterator[AsyncSession]:
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all, tables=_TABLES)
+
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as s:
+        yield s
+
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def authz_session() -> AsyncIterator[AsyncSession]:
+    """数据权限引擎专用内存库：含用户/部门/角色关联与知识单元表。"""
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all, tables=_AUTHZ_TABLES)
 
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as s:

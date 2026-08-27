@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from admin.core.deps import CurrentUser, get_current_user, require_permissions
 from admin.core.response import ok
 from admin.database import get_db
+from admin.schemas.ai import CheckPermissionsRequest, CheckPermissionsResult
 from admin.schemas.knowledge import (
     BatchDeleteRequest,
     KnowledgeUnitUpdate,
     UnitPermissionsUpdate,
 )
-from admin.services import knowledge_service
+from admin.services import knowledge_service, permission_engine
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -108,3 +109,20 @@ async def set_unit_permissions(
 ):
     await knowledge_service.set_unit_permissions(session, unit_id, payload.permissions)
     return ok(None)
+
+
+@router.post("/check-permissions")
+async def check_permissions(
+    payload: CheckPermissionsRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+):
+    """批量判定知识单元的数据权限（缺省以当前登录用户为判定主体）。"""
+    target_user_id = payload.user_id or current_user.id
+    result = await permission_engine.check_permissions(session, target_user_id, payload.unit_ids)
+    return ok(
+        CheckPermissionsResult(
+            authorized_unit_ids=result.authorized_unit_ids,
+            unauthorized_unit_ids=result.unauthorized_unit_ids,
+        ).model_dump()
+    )

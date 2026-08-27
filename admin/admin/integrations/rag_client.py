@@ -9,7 +9,9 @@ task / history），统一超时、重试与错误处理。
 
 from __future__ import annotations
 
+import json
 import logging
+from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import quote
 
@@ -110,3 +112,30 @@ async def get_history(session_id: str, limit: int = 50) -> dict[str, Any]:
 async def clear_history(session_id: str) -> dict[str, Any]:
     """清空会话历史。"""
     return await _request("DELETE", f"/api/v1/history/{quote(session_id)}")
+
+
+async def stream_events(session_id: str) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+    """订阅 RAG 流式回答事件，逐条产出 ``(event, data)``。
+
+    RAG 侧 ``/api/v1/stream/{session_id}`` 按 ``event:/data:`` 两行一组推送
+    （ready/progress/delta/final/error），本方法负责将其解析为元组交由业务层翻译。
+    """
+    settings = get_settings()
+    url = f"{settings.RAG_BASE_URL.rstrip('/')}/api/v1/stream/{quote(session_id)}"
+    async with httpx.AsyncClient(timeout=None) as client:
+        async with client.stream("GET", url) as response:
+            if response.is_error:
+                raise RagError(f"RAG stream 返回 HTTP {response.status_code}")
+            event: str | None = None
+            async for line in response.aiter_lines():
+                if line.startswith("event:"):
+                    event = line[len("event:") :].strip()
+                elif line.startswith("data:"):
+                    if event is None:
+                        continue
+                    try:
+                        data = json.loads(line[len("data:") :])
+                    except json.JSONDecodeError:
+                        data = {}
+                    yield event, data
+                    event = None

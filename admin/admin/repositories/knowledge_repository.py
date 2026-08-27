@@ -24,6 +24,17 @@ async def get_by_source_file_name(session: AsyncSession, source_file_name: str) 
     ).scalar_one_or_none()
 
 
+async def get_units_by_source_file_names(session: AsyncSession, source_file_names: list[str]) -> list[KnowledgeUnit]:
+    """按 source_file_name（RAG file_title 锚点）批量映射知识单元。"""
+    if not source_file_names:
+        return []
+    return list(
+        (
+            await session.execute(select(KnowledgeUnit).where(KnowledgeUnit.source_file_name.in_(source_file_names)))
+        ).scalars()
+    )
+
+
 async def list_units(
     session: AsyncSession,
     *,
@@ -68,6 +79,13 @@ async def delete_units(session: AsyncSession, unit_ids: list[int]) -> None:
 
 async def list_unit_permissions(session: AsyncSession, unit_id: int) -> list[UnitPermission]:
     return list((await session.execute(select(UnitPermission).where(UnitPermission.unit_id == unit_id))).scalars())
+
+
+async def list_unit_permissions_by_unit_ids(session: AsyncSession, unit_ids: list[int]) -> list[UnitPermission]:
+    """批量读取多个知识单元的数据权限实体（供权限引擎一次判定）。"""
+    if not unit_ids:
+        return []
+    return list((await session.execute(select(UnitPermission).where(UnitPermission.unit_id.in_(unit_ids)))).scalars())
 
 
 async def replace_unit_permissions(session: AsyncSession, unit_id: int, items: list[tuple[str, int]]) -> None:
