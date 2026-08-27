@@ -1,23 +1,50 @@
 import { LogoutOutlined } from '@ant-design/icons'
 import { Button, Layout, Menu, Space, Typography } from 'antd'
-import { useState } from 'react'
+import type { MenuProps } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { APP_MENU, filterMenu } from '../router/menu'
+import type { AppMenuItem } from '../router/menu'
 import { useAuthStore } from '../store/auth'
 
 const { Header, Sider, Content } = Layout
 
-// 菜单占位：后续按登录用户 permissions 动态渲染（T7.2）。
-const menuItems = [{ key: '/', label: '数据看板' }]
+type AntdMenuItem = Required<MenuProps>['items'][number]
+
+function toAntdItems(menus: AppMenuItem[]): AntdMenuItem[] {
+  return menus.map((m) => ({
+    key: m.path,
+    label: m.label,
+    icon: m.icon,
+    children: m.children ? toAntdItems(m.children) : undefined,
+  }))
+}
 
 export default function BasicLayout() {
   const [collapsed, setCollapsed] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
   const user = useAuthStore((state) => state.user)
+  const permissions = useAuthStore((state) => state.permissions)
   const logout = useAuthStore((state) => state.logout)
 
-  const handleMenuClick = ({ key }: { key: string }) => navigate(key)
+  const items = useMemo(() => toAntdItems(filterMenu(APP_MENU, permissions)), [permissions])
+
+  // 依据当前路径展开对应父级子菜单。
+  const defaultOpenKeys = useMemo(
+    () =>
+      APP_MENU.filter((m) => m.children?.some((c) => location.pathname.startsWith(c.path))).map(
+        (m) => m.path,
+      ),
+    [location.pathname],
+  )
+  const [openKeys, setOpenKeys] = useState<string[]>(defaultOpenKeys)
+  useEffect(() => {
+    setOpenKeys(defaultOpenKeys)
+  }, [defaultOpenKeys])
+
+  const handleMenuClick: MenuProps['onClick'] = ({ key }) => navigate(key)
   const handleLogout = () => {
     logout()
     navigate('/login', { replace: true })
@@ -35,6 +62,7 @@ export default function BasicLayout() {
             lineHeight: '48px',
             fontSize: 18,
             fontWeight: 600,
+            whiteSpace: 'nowrap',
           }}
         >
           KBMS
@@ -43,7 +71,9 @@ export default function BasicLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          openKeys={openKeys}
+          onOpenChange={setOpenKeys}
+          items={items}
           onClick={handleMenuClick}
         />
       </Sider>
