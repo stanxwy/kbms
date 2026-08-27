@@ -16,7 +16,7 @@ from admin.integrations import rag_client
 from admin.models.log import QaAccessLog
 from admin.repositories import knowledge_repository
 from admin.schemas.ai import SessionItem
-from admin.services import permission_engine
+from admin.services import permission_engine, settlement_service
 
 
 def _sse_pack(event: str, data: dict[str, Any]) -> str:
@@ -32,11 +32,32 @@ async def chat_stream(
 ) -> AsyncIterator[str]:
     """鉴权问答 SSE 生成器。
 
-    流程：RAG recall 候选 → file_title 映射知识单元 → 数据权限过滤 →
-    输出 unauthorized/sources → 以白名单提交 RAG query → 代理转发 delta/result/error。
+    流程：FAQ 缓存命中（语义匹配直接返回答）→ RAG recall 候选 → file_title 映射
+    知识单元 → 数据权限过滤 → 输出 unauthorized/sources → 白名单 RAG query → 代理转发。
     """
     started = time.perf_counter()
     sid = session_id or str(uuid.uuid4())
+
+    # 0. FAQ 缓存命中：语义匹配已发布 FAQ，命中直接返回标准答案（省 Token）。
+    faq = await settlement_service.find_faq_match(session, question)
+    if faq is not None:
+        final_answer = faq.answer
+        yield _sse_pack(
+            "result",
+            {"answer": final_answer, "session_id": sid, "from_faq": True, "faq_id": faq.id},
+        )
+        await _write_access_log(
+            session,
+            session_id=sid,
+            user_id=current_user.id,
+            question=question,
+            answer=final_answer,
+            recalled_unit_ids=[],
+            authorized_unit_ids=[faq.related_unit_id] if faq.related_unit_id else [],
+            unauthorized_unit_ids=[],
+            response_time_ms=int((time.perf_counter() - started) * 1000),
+        )
+        return
 
     # 1. 候选召回（去重 file_title）。
     recall_data = await rag_client.recall(question)

@@ -2,11 +2,15 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from admin.models.base import Base, TimestampMixin
+
+# 生产库使用 JSONB；SQLite（测试）降级为通用 JSON 类型，与 log.py 保持一致，
+# 使 faqs / knowledge_gaps 表可在 aiosqlite 下创建（供沉淀服务单测）。
+_JSONField = JSONB().with_variant(JSON(), "sqlite")
 
 
 class FAQ(TimestampMixin, Base):
@@ -14,7 +18,9 @@ class FAQ(TimestampMixin, Base):
 
     __tablename__ = "faqs"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True
+    )
     question: Mapped[str] = mapped_column(Text, nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str | None] = mapped_column(String(128), nullable=True)
@@ -33,9 +39,11 @@ class KnowledgeGap(TimestampMixin, Base):
 
     __tablename__ = "knowledge_gaps"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True
+    )
     question_pattern: Mapped[str] = mapped_column(Text, nullable=False)
-    sample_questions_json: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    sample_questions_json: Mapped[list | None] = mapped_column(_JSONField, nullable=True)
     ask_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     last_asked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(

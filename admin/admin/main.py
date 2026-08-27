@@ -1,6 +1,8 @@
 """KBMS admin 后端入口：装配 FastAPI 应用、中间件、日志与路由。"""
 
+import asyncio
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -13,6 +15,7 @@ from admin.api.v1 import api_router
 from admin.config import get_settings
 from admin.core.exceptions import AppError
 from admin.core.response import error_response
+from admin.scheduler import settlement_miner_loop
 
 settings = get_settings()
 
@@ -30,7 +33,18 @@ logger.add(
     enqueue=True,
 )
 
-app = FastAPI(title=settings.APP_NAME, version=settings.VERSION)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 后台启动沉淀定时任务（FAQ 挖掘 + 知识缺口识别）。
+    miner_task = asyncio.create_task(settlement_miner_loop())
+    try:
+        yield
+    finally:
+        miner_task.cancel()
+
+
+app = FastAPI(title=settings.APP_NAME, version=settings.VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

@@ -17,6 +17,7 @@ from admin.models.base import Base
 from admin.models.knowledge import KnowledgeUnit, UnitPermission
 from admin.models.log import QaAccessLog
 from admin.models.org import Department
+from admin.models.settlement import FAQ, KnowledgeGap
 from admin.models.user import User, UserRole
 
 _TABLES = [KnowledgeUnit.__table__, UnitPermission.__table__]
@@ -82,6 +83,34 @@ async def dashboard_session() -> AsyncIterator[AsyncSession]:
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all, tables=_DASHBOARD_TABLES)
+
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as s:
+        yield s
+
+    await engine.dispose()
+
+
+# 知识沉淀所需表：FAQ/知识缺口 + 挖掘事实源（问答访问日志）+ 补全目标知识单元。
+# faqs / knowledge_gaps 的 JSONB 列与自增主键均已在模型内做 SQLite 降级。
+_SETTLEMENT_TABLES = [
+    FAQ.__table__,
+    KnowledgeGap.__table__,
+    QaAccessLog.__table__,
+    KnowledgeUnit.__table__,
+]
+
+
+@pytest_asyncio.fixture
+async def settlement_session() -> AsyncIterator[AsyncSession]:
+    """知识沉淀专用内存库：含 FAQ、知识缺口、问答事实与知识单元表。"""
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all, tables=_SETTLEMENT_TABLES)
 
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as s:

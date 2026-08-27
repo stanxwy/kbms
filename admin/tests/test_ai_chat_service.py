@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock
 from admin.integrations import rag_client
 from admin.models.knowledge import KnowledgeUnit, UnitPermission
 from admin.models.user import User
-from admin.services import ai_chat_service
+from admin.services import ai_chat_service, settlement_service
 
 
 def test_sse_pack():
@@ -25,6 +25,7 @@ async def test_chat_stream_no_whitelist_shortcuts(session, monkeypatch):
         return {"hits": []}
 
     monkeypatch.setattr(rag_client, "recall", fake_recall)
+    monkeypatch.setattr(settlement_service, "find_faq_match", AsyncMock(return_value=None))
     monkeypatch.setattr(ai_chat_service, "_write_access_log", AsyncMock())
 
     frames = [f async for f in ai_chat_service.chat_stream(session, SimpleNamespace(id=1), "问题", None)]
@@ -62,6 +63,7 @@ async def test_chat_stream_authorized_flow(authz_session, monkeypatch):
     monkeypatch.setattr(rag_client, "recall", fake_recall)
     monkeypatch.setattr(rag_client, "query", fake_query)
     monkeypatch.setattr(rag_client, "stream_events", fake_stream)
+    monkeypatch.setattr(settlement_service, "find_faq_match", AsyncMock(return_value=None))
     monkeypatch.setattr(ai_chat_service, "_write_access_log", AsyncMock())
 
     frames = [f async for f in ai_chat_service.chat_stream(session, SimpleNamespace(id=1), "guide?", None)]
