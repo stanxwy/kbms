@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api.middleware.cors import setup_cors
 from app.api.middleware.request_logger import request_logger_middleware
 from app.api.ui_router import router as ui_router
+from app.api.v1.chunk_router import router as chunk_router
 from app.api.v1.embed_router import router as embed_router
 from app.api.v1.health_router import router as health_router
 from app.api.v1.ingest_router import router as ingest_router
@@ -44,6 +45,7 @@ app.include_router(query_router, prefix=settings.API_V1_STR)
 app.include_router(task_router, prefix=settings.API_V1_STR)
 app.include_router(recall_router, prefix=settings.API_V1_STR)
 app.include_router(embed_router, prefix=settings.API_V1_STR)
+app.include_router(chunk_router, prefix=settings.API_V1_STR)
 
 
 @app.exception_handler(404)
