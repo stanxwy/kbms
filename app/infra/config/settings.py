@@ -33,6 +33,11 @@ class Settings(PydanticBaseSettings):
     env: str = Field("prod", env="APP_ENV")
     log_level: str = Field("INFO", env="LOG_LEVEL")
 
+    # ===== File storage =====
+    # 上传文档落盘根目录。可被 DATA_BASED_ROOT_DIR 覆盖；缺省 temp-files，
+    # 与 Dockerfile /app/temp-files 及 MD_ROOT_DIR=./temp-files/ 保持一致。
+    data_based_root_dir: str = Field("temp-files", env="DATA_BASED_ROOT_DIR")
+
     # ===== LLM =====
     openai_api_key: str = Field(..., env="OPENAI_API_KEY")
     openai_api_base: str = Field("https://api.openai.com/v1", env="OPENAI_API_BASE")

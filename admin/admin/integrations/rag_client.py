@@ -65,7 +65,7 @@ async def upload_files(files: list[tuple[str, bytes, str]]) -> list[str]:
 
 async def get_task_status(task_id: str) -> dict[str, Any]:
     """查询导入任务进度。"""
-    return await _request("GET", f"/api/v1/task/status/{quote(task_id)}", retries=_GET_RETRIES)
+    return await _request("GET", f"/api/v1/status/{quote(task_id)}", retries=_GET_RETRIES)
 
 
 async def delete_chunks(file_title: str) -> int:

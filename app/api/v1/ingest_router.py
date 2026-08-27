@@ -12,6 +12,7 @@ from fastapi import (
 )
 
 from app.api.v1.deps import get_ingestion_service
+from app.infra.config.settings import get_settings
 from app.schema.ingestion_schema import IngestionResponse
 from app.services.ingestion_service import IngestionService
 
@@ -22,7 +23,7 @@ router = APIRouter(tags=["ingest"])
 @router.post("/upload", summary="file upload API", description="multiple files upload supported, triggers import workflow")
 async def upload_files(background_tasks: BackgroundTasks, files: list[UploadFile] = File(...), service: IngestionService = Depends(get_ingestion_service)):
     try:
-        data_based_root_dir = os.getenv("DATA_BASED_ROOT_DIR")
+        data_based_root_dir = get_settings().data_based_root_dir
         date_str = datetime.now().strftime("%Y%m%d")
         date_dir = os.path.join(data_based_root_dir, date_str)
         task_ids = []

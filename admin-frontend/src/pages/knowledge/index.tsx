@@ -399,6 +399,7 @@ export default function KnowledgePage() {
             multiple
             fileList={fileList}
             beforeUpload={() => false}
+            showUploadList={false}
             onChange={({ fileList: fl }) => setFileList(fl)}
           >
             <Button icon={<UploadOutlined />}>选择文件</Button>
