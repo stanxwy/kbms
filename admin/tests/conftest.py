@@ -15,6 +15,7 @@ from sqlalchemy.pool import StaticPool
 
 from admin.models.base import Base
 from admin.models.knowledge import KnowledgeUnit, UnitPermission
+from admin.models.log import QaAccessLog
 from admin.models.org import Department
 from admin.models.user import User, UserRole
 
@@ -58,6 +59,29 @@ async def authz_session() -> AsyncIterator[AsyncSession]:
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all, tables=_AUTHZ_TABLES)
+
+    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as s:
+        yield s
+
+    await engine.dispose()
+
+
+# 数据看板所需表：知识单元 + 问答访问事实表。
+# qa_access_logs 的 JSONB 列已通过 with_variant 降级为 JSON，故 aiosqlite 可建表。
+_DASHBOARD_TABLES = [KnowledgeUnit.__table__, QaAccessLog.__table__]
+
+
+@pytest_asyncio.fixture
+async def dashboard_session() -> AsyncIterator[AsyncSession]:
+    """数据看板专用内存库：含知识单元与问答访问事实表。"""
+    engine = create_async_engine(
+        "sqlite+aiosqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all, tables=_DASHBOARD_TABLES)
 
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as s:
