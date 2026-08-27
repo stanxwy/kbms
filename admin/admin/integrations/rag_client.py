@@ -75,16 +75,24 @@ async def delete_chunks(file_title: str) -> int:
 
 
 async def recall(query: str, top_k: int = 10, item_names: list[str] | None = None) -> dict[str, Any]:
-    """候选召回：返回去重后的 file_title 列表。"""
-    body: dict[str, Any] = {"query": query, "top_k": top_k}
+    """候选召回：返回去重后的 file_title 列表。
+
+    注意：当前运行的 RAG(旧版 recall 签名)把 body 包装在 ``payload`` 字段下，
+    OpenAPI 请求体为 ``{"payload": {...}}``；故此处显式嵌套，与运行实例对齐。
+    """
+    body: dict[str, Any] = {"payload": {"query": query, "top_k": top_k}}
     if item_names:
-        body["item_names"] = item_names
+        body["payload"]["item_names"] = item_names
     return await _request("POST", "/api/v1/recall", json=body)
 
 
 async def embed(texts: list[str]) -> dict[str, Any]:
-    """文本向量化（FAQ 缓存 / 缺口聚类复用）。"""
-    return await _request("POST", "/api/v1/embed", json={"texts": texts})
+    """文本向量化（FAQ 缓存 / 缺口聚类复用）。
+
+    与 recall 同理：运行中的 RAG 对 embed 也把 body 包装在 ``payload`` 字段下，
+    故显式嵌套 ``{"payload": {"texts": [...]}}`` 与运行契约对齐。
+    """
+    return await _request("POST", "/api/v1/embed", json={"payload": {"texts": texts}})
 
 
 async def query(

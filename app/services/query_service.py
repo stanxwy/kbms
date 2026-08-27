@@ -63,6 +63,10 @@ class QueryService:
             update_task_status(task_id, TASK_STATUS_FAILED, is_stream)
             if is_stream:
                 push_sse_event(session_id, SSEEvent.ERROR, {"error": str(e)})
+        finally:
+            if is_stream:
+                # 终结 SSE 流，否则客户端会一直挂在 stream 上（需手动断开）。
+                push_sse_event(session_id, SSEEvent.CLOSE, {})
 
     def get_answer(self, task_id: str) -> str:
         return get_task_result(task_id, "answer", "")

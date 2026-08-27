@@ -265,7 +265,7 @@ class ChunksMilvusService(MilvusService, ChunksVectorDB):
                 collection_name=self._milvus_config.chunks_collection,
                 reqs=reqs,
                 ranker_weights=RANKER_WEIGHTS,
-                output_fields=["chunk_id", "content", "item_name"]
+                output_fields=["chunk_id", "content", "item_name", "file_title"]
             )
             return search_res[0] if search_res else []
         except Exception as e:
