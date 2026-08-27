@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from pathlib import Path
 
@@ -20,6 +21,8 @@ from admin.schemas.knowledge import (
     KnowledgeUnitUpdate,
     UnitPermissionItem,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _gen_unit_code() -> str:
@@ -146,12 +149,21 @@ async def update_unit(session: AsyncSession, unit_id: int, data: KnowledgeUnitUp
 
 
 async def delete_units(session: AsyncSession, unit_ids: list[int]) -> None:
-    """批量删除：先同步删 RAG 向量，再删知识单元行。"""
+    """批量删除：先同步删 RAG 向量，再删知识单元行。
+
+    RAG 删除失败/无向量记录时不阻断，依然删除 PostgreSQL 记录（清理孤儿元数据）。
+    """
     units = await knowledge_repository.get_units_by_ids(session, unit_ids)
     if not units:
         raise NotFoundError("知识单元不存在")
     for unit in units:
-        await rag_client.delete_chunks(unit.source_file_name)
+        try:
+            await rag_client.delete_chunks(unit.source_file_name)
+        except Exception as e:
+            logger.warning(
+                "RAG 删除向量记录失败（不阻断删除元数据）: unit_id=%d file_title=%s error=%s",
+                unit.id, unit.source_file_name, str(e),
+            )
     await knowledge_repository.delete_units(session, [u.id for u in units])
     await session.commit()
 

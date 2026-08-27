@@ -394,28 +394,42 @@ export default function KnowledgePage() {
       </Space>
 
       {canImport && (
-        <Space style={{ marginBottom: 16 }} align="start">
-          <Upload
-            multiple
-            fileList={fileList}
-            beforeUpload={() => false}
-            showUploadList={false}
-            onChange={({ fileList: fl }) => setFileList(fl)}
-          >
-            <Button icon={<UploadOutlined />}>选择文件</Button>
-          </Upload>
-          <Button type="primary" icon={<InboxOutlined />} loading={importing} onClick={handleImport}>
-            开始导入
-          </Button>
-          {canDelete && selectedIds.length > 0 && (
-            <Popconfirm
-              title={`确认删除选中的 ${selectedIds.length} 个知识单元？`}
-              onConfirm={() => handleDelete(selectedIds)}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <Upload
+              multiple
+              fileList={fileList}
+              beforeUpload={() => false}
+              showUploadList={false}
+              onChange={({ fileList: fl }) => setFileList(fl)}
             >
-              <Button danger>批量删除</Button>
-            </Popconfirm>
+              <Button icon={<UploadOutlined />}>选择文件</Button>
+            </Upload>
+            <Button type="primary" icon={<InboxOutlined />} loading={importing} onClick={handleImport}>
+              开始导入
+            </Button>
+            {canDelete && selectedIds.length > 0 && (
+              <Popconfirm
+                title={`确认删除选中的 ${selectedIds.length} 个知识单元？`}
+                onConfirm={() => handleDelete(selectedIds)}
+              >
+                <Button danger>批量删除</Button>
+              </Popconfirm>
+            )}
+          </div>
+          {fileList.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginRight: 4 }}>
+                已选择：
+              </Typography.Text>
+              {fileList.map((f, i) => (
+                <Tag key={f.uid ?? i} closable onClose={() => setFileList((fl) => fl.filter((x) => x !== f))}>
+                  {f.name}
+                </Tag>
+              ))}
+            </div>
           )}
-        </Space>
+        </div>
       )}
 
       {importItems.length > 0 && (

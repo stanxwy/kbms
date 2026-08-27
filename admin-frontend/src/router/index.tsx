@@ -5,6 +5,8 @@ import { Navigate, createBrowserRouter } from 'react-router-dom'
 import BasicLayout from '../layouts/BasicLayout'
 import LoginPage from '../pages/login'
 import { useAuthStore } from '../store/auth'
+import { APP_MENU, filterMenu } from './menu'
+import type { AppMenuItem } from './menu'
 
 // 按页懒加载拆包：减少首屏 bundle，各页面独立为 chunk。
 const DashboardPage = lazy(() => import('../pages/dashboard'))
@@ -28,6 +30,26 @@ function RequireAuth({ children }: { children: ReactElement }) {
   return children
 }
 
+/** 返回菜单树中第一个叶子路径（跳转落地页用）。 */
+function firstLeafPath(menus: AppMenuItem[]): string | null {
+  for (const item of menus) {
+    if (item.children && item.children.length > 0) {
+      const p = firstLeafPath(item.children)
+      if (p) return p
+    } else {
+      return item.path
+    }
+  }
+  return null
+}
+
+/** 登录后默认落地页：跳转用户第一个有权限的菜单。 */
+function DefaultIndex() {
+  const permissions = useAuthStore((state) => state.permissions)
+  const first = firstLeafPath(filterMenu(APP_MENU, permissions))
+  return <Navigate to={first ?? '/dashboard'} replace />
+}
+
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
@@ -38,7 +60,7 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Navigate to="/dashboard" replace /> },
+      { index: true, element: <DefaultIndex /> },
       { path: 'dashboard', element: <PageFallback><DashboardPage /></PageFallback> },
       { path: 'org/users', element: <PageFallback><UsersPage /></PageFallback> },
       { path: 'org/roles', element: <PageFallback><RolesPage /></PageFallback> },

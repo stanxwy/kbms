@@ -152,13 +152,13 @@ export default function ChatPage() {
       <Card
         size="small"
         title="会话"
-        style={{ width: 260, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ width: 260, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}
         extra={
           <Button type="text" size="small" icon={<PlusOutlined />} onClick={newChat}>
             新对话
           </Button>
         }
-        bodyStyle={{ flex: 1, overflow: 'auto' }}
+        bodyStyle={{ flex: 1, overflow: 'auto', minHeight: 0 }}
       >
         <List
           size="small"
@@ -196,8 +196,8 @@ export default function ChatPage() {
         />
       </Card>
 
-      <Card style={{ flex: 1, display: 'flex', flexDirection: 'column' }} bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, overflow: 'auto', paddingBottom: 16 }}>
+      <Card style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }} bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ flex: 1, overflow: 'auto', minHeight: 0, minWidth: 0, paddingBottom: 16 }}>
           <Spin spinning={loadingHistory}>
             {messages.length === 0 ? (
               <Empty description="开始你的提问" style={{ marginTop: 120 }} />
@@ -211,7 +211,7 @@ export default function ChatPage() {
                     marginBottom: 16,
                   }}
                 >
-                  <div style={{ maxWidth: '78%' }}>
+                  <div style={{ maxWidth: '78%', minWidth: 0 }}>
                     <Tag color={m.role === 'user' ? 'blue' : 'green'} style={{ marginBottom: 4 }}>
                       {m.role === 'user' ? '我' : 'AI'}
                     </Tag>
